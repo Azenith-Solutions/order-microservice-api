@@ -1,9 +1,8 @@
-package com.azenithsolutions.orderserviceapi.domain;
+package com.azenithsolutions.orderserviceapi.domain.model;
 
 import java.time.LocalDateTime;
 
 import com.azenithsolutions.orderserviceapi.domain.enums.OrderStatus;
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 public class Order {
