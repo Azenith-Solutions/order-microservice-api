@@ -2,7 +2,6 @@ package com.azenithsolutions.orderserviceapi.infrastructure.persistence.adapter;
 
 import com.azenithsolutions.orderserviceapi.domain.model.Order;
 import com.azenithsolutions.orderserviceapi.domain.gateway.OrderGateway;
-import com.azenithsolutions.orderserviceapi.domain.command.OrderCommandDTO;
 import com.azenithsolutions.orderserviceapi.infrastructure.persistence.entity.OrderEntity;
 import com.azenithsolutions.orderserviceapi.infrastructure.persistence.repository.SpringDataOrderRepository;
 import org.springframework.stereotype.Service;
@@ -37,7 +36,7 @@ public class OrderGatewayAdapter implements OrderGateway {
 
     private OrderEntity toEntity(Order order) {
         OrderEntity entity = new OrderEntity();
-        entity.setId(order.getId());
+        entity.setId(order.getIdPedido());
         entity.setCodigo(order.getCodigo());
         entity.setNomeComprador(order.getNomeComprador());
         entity.setEmailComprador(order.getEmailComprador());
@@ -52,7 +51,7 @@ public class OrderGatewayAdapter implements OrderGateway {
 
     private Order toDomain(OrderEntity entity) {
         Order domain  = new Order();
-        domain.setId(entity.getId());
+        domain.setIdPedido(entity.getId());
         domain.setCodigo(entity.getCodigo());
         domain.setNomeComprador(entity.getNomeComprador());
         domain.setEmailComprador(entity.getEmailComprador());

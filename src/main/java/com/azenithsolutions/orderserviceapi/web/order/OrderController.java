@@ -59,7 +59,6 @@ public class OrderController {
     @PostMapping
     @Operation(summary = "Create order", description = "Creates a new order")
     public ResponseEntity<OrderRest> create(@Valid @RequestBody OrderRegisterRequestDTO orderDTO) {
-        System.out.println("Creating order");
         Order created = create.execute(OrderRestMapper.toCommand(orderDTO));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(OrderRestMapper.toRest(created));

@@ -1,6 +1,7 @@
 package com.azenithsolutions.orderserviceapi.web.rest;
 
 import com.azenithsolutions.orderserviceapi.domain.enums.OrderStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -9,7 +10,7 @@ import java.time.LocalDateTime;
 @Data
 @Schema(name = "Order", description = "Order representation for API v2")
 public class OrderRest {
-    private Long id;
+    private Long idPedido;
     @Schema(description = "Order code", example = "ORD-2025-0001")
     private String codigo;
     @Schema(description = "Buyer name", example = "Joao Silva")
@@ -24,8 +25,10 @@ public class OrderRest {
     private OrderStatus status;
     @Schema(description = "Buyer phone", example = "1198877-6655")
     private String telCelular;
-    @Schema(description = "Creation timestamp", example = "2025-05-25T10:15:30")
+    @Schema(description = "Creation timestamp", example = "2025-05-25T10:15:30.123")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime createdAt;
-    @Schema(description = "Last update timestamp", example = "2025-05-26T12:00:00")
+    @Schema(description = "Last update timestamp", example = "2025-05-26T12:00:00.456")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime updatedAt;
 }
