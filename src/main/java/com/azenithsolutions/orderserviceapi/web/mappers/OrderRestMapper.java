@@ -3,28 +3,29 @@ package com.azenithsolutions.orderserviceapi.web.mappers;
 import com.azenithsolutions.orderserviceapi.domain.model.Order;
 import com.azenithsolutions.orderserviceapi.domain.command.OrderCommandDTO;
 import com.azenithsolutions.orderserviceapi.infrastructure.dto.OrderRegisterRequestDTO;
+import com.azenithsolutions.orderserviceapi.web.dto.OrderRequestDTO;
 import com.azenithsolutions.orderserviceapi.web.rest.OrderRest;
 
 public class OrderRestMapper {
-    public static OrderRest toRest(Order domain) {
+    public static OrderRequestDTO toRest(Order domain) {
         if (domain == null) return null;
 
-        OrderRest orderRest = new OrderRest();
-        orderRest.setIdPedido(domain.getIdPedido());
-        orderRest.setCodigo(domain.getCodigo());
-        orderRest.setNomeComprador(domain.getNomeComprador());
-        orderRest.setEmailComprador(domain.getEmailComprador());
-        orderRest.setCnpj(domain.getCnpj());
-        orderRest.setValor(domain.getValor());
-        orderRest.setStatus(domain.getStatus());
-        orderRest.setTelCelular(domain.getTelCelular());
-        orderRest.setCreatedAt(domain.getCreatedAt());
-        orderRest.setUpdatedAt(domain.getUpdatedAt());
+        OrderRequestDTO orderDTO = new OrderRequestDTO();
+        orderDTO.setIdPedido(domain.getIdPedido());
+        orderDTO.setCodigo(domain.getCodigo());
+        orderDTO.setNomeComprador(domain.getNomeComprador());
+        orderDTO.setEmailComprador(domain.getEmailComprador());
+        orderDTO.setCnpj(domain.getCnpj());
+        orderDTO.setValor(domain.getValor());
+        orderDTO.setStatus(domain.getStatus());
+        orderDTO.setTelCelular(domain.getTelCelular());
+        orderDTO.setCreatedAt(domain.getCreatedAt());
+        orderDTO.setUpdatedAt(domain.getUpdatedAt());
 
-        return orderRest;
+        return orderDTO;
     }
 
-    public static Order toDomain(OrderRest rest) {
+    public static Order toDomain(OrderRequestDTO rest) {
         if (rest == null) return null;
 
         Order domain = new Order();
@@ -42,18 +43,18 @@ public class OrderRestMapper {
         return domain;
     }
 
-    public static OrderCommandDTO toCommand(OrderRegisterRequestDTO dto) {
+    public static OrderCommandDTO toCommand(OrderRequestDTO dto) {
         if (dto == null) return null;
 
         return new OrderCommandDTO(
-                dto.codigo(),
-                dto.nomeComprador(),
-                dto.emailComprador(),
-                dto.cnpj(),
-                dto.valor(),
-                dto.status(),
-                dto.telCelular(),
-                dto.createdAt(),
-                dto.updatedAt());
+                dto.getCodigo(),
+                dto.getNomeComprador(),
+                dto.getEmailComprador(),
+                dto.getCnpj(),
+                dto.getValor(),
+                dto.getStatus(),
+                dto.getTelCelular(),
+                dto.getCreatedAt(),
+                dto.getUpdatedAt());
     }
 }

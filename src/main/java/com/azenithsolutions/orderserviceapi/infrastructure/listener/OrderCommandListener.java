@@ -1,8 +1,10 @@
 package com.azenithsolutions.orderserviceapi.infrastructure.listener;
 
 import com.azenithsolutions.orderserviceapi.domain.command.OrderCommandDTO;
+import com.azenithsolutions.orderserviceapi.domain.model.Order;
 import com.azenithsolutions.orderserviceapi.infrastructure.dto.OrderRegisterRequestDTO;
 import com.azenithsolutions.orderserviceapi.infrastructure.producer.OrderCreatedEventPublisher;
+import com.azenithsolutions.orderserviceapi.web.dto.OrderRequestDTO;
 import com.azenithsolutions.orderserviceapi.web.mappers.OrderRestMapper;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -21,15 +23,16 @@ public class OrderCommandListener {
         queues = "${broker.order.command.queue}",
         containerFactory = "orderCommandListenerContainerFactory"
     )
-    public void onMessage(OrderRegisterRequestDTO order) {
+    public void onMessage(OrderRequestDTO order) {
         try {
             System.out.println("Trying Create");
             OrderCommandDTO command = OrderRestMapper.toCommand(order);
-            create.execute(command);
-            publisher.publish("Order Created");
+            Order domain = create.execute(command);
+
+            publisher.publish(OrderRestMapper.toRest(domain));
             System.out.println("Order Created");
         } catch (Exception exception) {
-            publisher.publish("Order Creation Failed");
+            publisher.publish(order);
             System.out.println("Error Creating Order");
             throw exception;
         }

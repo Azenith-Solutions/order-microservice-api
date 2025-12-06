@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import com.azenithsolutions.orderserviceapi.infrastructure.dto.OrderRegisterRequestDTO;
+import com.azenithsolutions.orderserviceapi.web.dto.OrderRequestDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -40,8 +41,8 @@ public class OrderController {
 
     @GetMapping
     @Operation(summary = "List orders", description = "Returns all orders (v2 clean architecture)")
-    public ResponseEntity<List<OrderRest>> getAll() {
-        List<OrderRest> orders = list.execute().stream().map(OrderRestMapper::toRest).toList();
+    public ResponseEntity<List<OrderRequestDTO>> getAll() {
+        List<OrderRequestDTO> orders = list.execute().stream().map(OrderRestMapper::toRest).toList();
         return ResponseEntity.ok(orders);
     }
 
@@ -49,7 +50,7 @@ public class OrderController {
     @Operation(summary = "Get order by id", description = "Returns one order if it exists")
     public ResponseEntity<?> getById(@PathVariable Long id) {
         try {
-            OrderRest orderRest = OrderRestMapper.toRest(getById.execute(id));
+            OrderRequestDTO orderRest = OrderRestMapper.toRest(getById.execute(id));
             return ResponseEntity.ok(orderRest);
         } catch (NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
@@ -58,7 +59,7 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "Create order", description = "Creates a new order")
-    public ResponseEntity<OrderRest> create(@Valid @RequestBody OrderRegisterRequestDTO orderDTO) {
+    public ResponseEntity<OrderRequestDTO> create(@Valid @RequestBody OrderRequestDTO orderDTO) {
         Order created = create.execute(OrderRestMapper.toCommand(orderDTO));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(OrderRestMapper.toRest(created));
@@ -66,7 +67,7 @@ public class OrderController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update order", description = "Updates an existing order")
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody OrderRest orderRest) {
+    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody OrderRequestDTO orderRest) {
         try {
             Order updated = update.execute(id, OrderRestMapper.toDomain(orderRest));
 
