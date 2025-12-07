@@ -3,8 +3,12 @@ package com.azenithsolutions.orderserviceapi.web.mappers;
 import com.azenithsolutions.orderserviceapi.domain.model.Order;
 import com.azenithsolutions.orderserviceapi.domain.command.OrderCommandDTO;
 import com.azenithsolutions.orderserviceapi.infrastructure.dto.OrderRegisterRequestDTO;
+import com.azenithsolutions.orderserviceapi.web.dto.ItemRequestDTO;
 import com.azenithsolutions.orderserviceapi.web.dto.OrderRequestDTO;
 import com.azenithsolutions.orderserviceapi.web.rest.OrderRest;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class OrderRestMapper {
     public static OrderRequestDTO toRest(Order domain) {
@@ -56,5 +60,31 @@ public class OrderRestMapper {
                 dto.getTelCelular(),
                 dto.getCreatedAt(),
                 dto.getUpdatedAt());
+    }
+
+    public static OrderRequestDTO toRestUdpateItems(Order domain, List<ItemRequestDTO> items) {
+        if (domain == null) return null;
+
+        List<ItemRequestDTO> newItems = items.stream()
+                .map(item -> {
+                    item.setFkPedido(domain.getIdPedido());
+                    return item;
+                })
+                .toList();
+
+        OrderRequestDTO orderDTO = new OrderRequestDTO();
+        orderDTO.setIdPedido(domain.getIdPedido());
+        orderDTO.setCodigo(domain.getCodigo());
+        orderDTO.setNomeComprador(domain.getNomeComprador());
+        orderDTO.setEmailComprador(domain.getEmailComprador());
+        orderDTO.setCnpj(domain.getCnpj());
+        orderDTO.setValor(domain.getValor());
+        orderDTO.setStatus(domain.getStatus());
+        orderDTO.setTelCelular(domain.getTelCelular());
+        orderDTO.setItems(newItems);
+        orderDTO.setCreatedAt(domain.getCreatedAt());
+        orderDTO.setUpdatedAt(domain.getUpdatedAt());
+
+        return orderDTO;
     }
 }
