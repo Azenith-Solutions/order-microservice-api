@@ -29,7 +29,7 @@ public class OrderCommandListener {
             OrderCommandDTO command = OrderRestMapper.toCommand(order);
             Order domain = create.execute(command);
 
-            publisher.publish(OrderRestMapper.toRest(domain));
+            publisher.publish(OrderRestMapper.toRestUdpateItems(domain, order.getItems()));
             System.out.println("Order Created");
         } catch (Exception exception) {
             publisher.publish(order);
