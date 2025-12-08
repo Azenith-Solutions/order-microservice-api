@@ -52,97 +52,77 @@ jobs:
 
       - name: Setup SSH
         run: |
-          set -x
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ci
           chmod 600 ~/.ssh/id_ci
 
-          # Adicionar fingerprints dos servidores conhecidos
-          ssh-keyscan -T 10 -H "${{ secrets.BASTION_IP }}" >> ~/.ssh/known_hosts || echo "ssh-keyscan bastion failed"
+          ssh-keyscan -T 10 -H "${{ secrets.BASTION_IP }}" >> ~/.ssh/known_hosts || echo "ssh-keyscan failed"
 
-          cat > ~/.ssh/config << 'SSHCONFIG'
+          cat > ~/.ssh/config << 'EOF'
           Host bastion
             HostName ${{ secrets.BASTION_IP }}
             User deploy
             IdentityFile ~/.ssh/id_ci
             StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
+            ForwardAgent yes
 
           Host target-backend-1
             HostName ${{ secrets.BACKEND_SERVER_1_IP }}
             User deploy
             IdentityFile ~/.ssh/id_ci
-            ProxyJump bastion
+            ProxyCommand ssh -W %h:%p bastion
             StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
+            ForwardAgent yes
 
           Host target-backend-2
             HostName ${{ secrets.BACKEND_SERVER_2_IP }}
             User deploy
             IdentityFile ~/.ssh/id_ci
-            ProxyJump bastion
+            ProxyCommand ssh -W %h:%p bastion
             StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-          SSHCONFIG
+            ForwardAgent yes
+          EOF
 
           chmod 600 ~/.ssh/config
 
-          echo "=== SSH Config ==="
-          cat ~/.ssh/config
-
-          echo "=== SSH Key Info ==="
-          ssh-keygen -lf ~/.ssh/id_ci
-
-      - name: Debug SSH Key
+      - name: Test SSH connections
         run: |
-          echo "=== Chave pública SSH que estamos usando ==="
-          ssh-keygen -y -f ~/.ssh/id_ci
+          echo "=== Testando conexões SSH ==="
 
-          echo "=== Testando conexão com bastion ==="
-          ssh -v bastion "echo 'Bastion OK!' && whoami" || echo "Falha no bastion"
-
-      - name: Verify SSH Keys on Servers
-        run: |
-          echo "=== Verificando chaves SSH nos servidores ==="
-
-          echo "Verificando chave no bastion..."
-          ssh bastion "cat ~/.ssh/authorized_keys | grep -E '^ssh-ed25519' | head -1" || echo "Erro ao ler authorized_keys do bastion"
-
-          echo "Verificando chave no target-backend-1..."
-          ssh bastion "ssh -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'cat ~/.ssh/authorized_keys | grep -E \"^ssh-ed25519\" | head -1'" || echo "Erro ao ler authorized_keys do target-backend-1"
-
-          echo "Verificando chave no target-backend-2..."
-          ssh bastion "ssh -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'cat ~/.ssh/authorized_keys | grep -E \"^ssh-ed25519\" | head -1'" || echo "Erro ao ler authorized_keys do target-backend-2"
-
-      - name: Test Direct SSH to Targets
-        run: |
-          echo "=== Testando conexão direta via bastion ==="
+          echo "Testando bastion..."
+          ssh bastion "echo 'Bastion OK' && whoami"
 
           echo "Testando target-backend-1..."
-          ssh -v target-backend-1 "echo 'Target-backend-1 OK!' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha no target-backend-1"
+          ssh target-backend-1 "echo 'Target-1 OK' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha target-1"
 
-          echo "Testando target-backend-2..."  
-          ssh -v target-backend-2 "echo 'Target-backend-2 OK!' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha no target-backend-2"
+          echo "Testando target-backend-2..."
+          ssh target-backend-2 "echo 'Target-2 OK' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha target-2"
 
-      - name: Copy docker-compose.yml to Backend Servers
+      - name: Copy files via bastion (alternative method)
         run: |
-          echo "=== Copiando docker-compose.yml ==="
+          echo "=== Copiando arquivos via bastion ==="
 
+          # Método alternativo: copiar via bastion usando rsync
           echo "Copiando para target-backend-1..."
-          scp ./docker-compose.yaml target-backend-1:/opt/backend-api-rest/docker-compose.yaml
+          ssh bastion "mkdir -p /tmp/deploy-files"
+          scp ./docker-compose.yaml bastion:/tmp/deploy-files/
+          ssh bastion "scp /tmp/deploy-files/docker-compose.yaml deploy@${{ secrets.BACKEND_SERVER_1_IP }}:/opt/backend-api-rest/"
 
           echo "Copiando para target-backend-2..."
-          scp ./docker-compose.yaml target-backend-2:/opt/backend-api-rest/docker-compose.yaml
+          ssh bastion "scp /tmp/deploy-files/docker-compose.yaml deploy@${{ secrets.BACKEND_SERVER_2_IP }}:/opt/backend-api-rest/"
+
+          # Limpar arquivos temporários
+          ssh bastion "rm -rf /tmp/deploy-files"
 
           echo "=== Verificando arquivos copiados ==="
-          ssh target-backend-1 "ls -la /opt/backend-api-rest/"
-          ssh target-backend-2 "ls -la /opt/backend-api-rest/"
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'ls -la /opt/backend-api-rest/'"
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'ls -la /opt/backend-api-rest/'"
 
-      - name: Deploy to Backend Server 1
+      - name: Deploy via bastion
         run: |
-          set -euo pipefail
-          REMOTE_CMD='
+          echo "=== Deploy via bastion ==="
+
+          DEPLOY_SCRIPT='
             set -e
             cd /opt/backend-api-rest
             
@@ -168,61 +148,34 @@ jobs:
             echo "=== Aguardando inicialização ==="
             sleep 15
             
-            echo "=== Logs do container ==="
-            docker compose logs order-microservice --tail=50
-          '
-
-          ssh target-backend-1 "$REMOTE_CMD"
-
-      - name: Deploy to Backend Server 2
-        run: |
-          set -euo pipefail
-          REMOTE_CMD='
-            set -e
-            cd /opt/backend-api-rest
-            
-            if [ ! -f .env.production ]; then
-              echo "❌ Erro: .env.production não existe!"
-              exit 1
-            fi
-            
-            echo "=== Configurando variáveis de ambiente ==="
-            echo "BACKEND_IMAGE_TAG=latest" > .env
-            echo "ORDER_IMAGE_TAG=${{ github.sha }}" >> .env
-            cat .env.production >> .env
-            
-            echo "=== Fazendo login no Docker Registry ==="
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            
-            echo "=== Fazendo pull da nova imagem ==="
-            docker compose --env-file .env pull order-microservice
-            
-            echo "=== Iniciando o serviço ==="
-            docker compose --env-file .env up -d order-microservice
-            
-            echo "=== Aguardando inicialização ==="
-            sleep 15
+            echo "=== Status dos containers ==="
+            docker compose ps
             
             echo "=== Logs do container ==="
             docker compose logs order-microservice --tail=50
           '
 
-          ssh target-backend-2 "$REMOTE_CMD"
+          echo "Deploy no servidor 1..."
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} '$DEPLOY_SCRIPT'"
+
+          echo "Deploy no servidor 2..."
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} '$DEPLOY_SCRIPT'"
 
       - name: Health Check
         run: |
-          echo "=== Aguardando serviços ficarem prontos ==="
+          echo "=== Health Check via bastion ==="
           sleep 30
 
-          echo "=== Verificando saúde dos serviços ==="
-          ssh target-backend-1 "curl -f http://localhost:8082/actuator/health || echo '❌ Health check falhou no microserviço - servidor 1'"
-          ssh target-backend-2 "curl -f http://localhost:8082/actuator/health || echo '❌ Health check falhou no microserviço - servidor 2'"
+          echo "Verificando servidor 1..."
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
 
-          echo "✅ Deploy do order-microservice concluído!"
+          echo "Verificando servidor 2..."
+          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
+
+          echo "✅ Deploy concluído!"
 
       - name: Cleanup
         if: always()
         run: |
-          echo "=== Limpando arquivos SSH ==="
-          rm -rf ~/.ssh/id_ci
+          rm -f ~/.ssh/id_ci
           echo "✅ Cleanup concluído!"
