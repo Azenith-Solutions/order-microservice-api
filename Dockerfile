@@ -1,4 +1,5 @@
-FROM openjdk:21-jdk-slim
+# Opção 1: Usar Eclipse Temurin (recomendado)
+FROM eclipse-temurin:21-jdk-alpine
 
 WORKDIR /app
 
