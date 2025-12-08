@@ -65,58 +65,77 @@ jobs:
             IdentityFile ~/.ssh/id_ci
             StrictHostKeyChecking no
             ForwardAgent yes
-
-          Host target-backend-1
-            HostName ${{ secrets.BACKEND_SERVER_1_IP }}
-            User deploy
-            IdentityFile ~/.ssh/id_ci
-            ProxyCommand ssh -W %h:%p bastion
-            StrictHostKeyChecking no
-            ForwardAgent yes
-
-          Host target-backend-2
-            HostName ${{ secrets.BACKEND_SERVER_2_IP }}
-            User deploy
-            IdentityFile ~/.ssh/id_ci
-            ProxyCommand ssh -W %h:%p bastion
-            StrictHostKeyChecking no
-            ForwardAgent yes
           EOF
 
           chmod 600 ~/.ssh/config
 
-      - name: Test SSH connections
+      - name: Test SSH and diagnose
         run: |
-          echo "=== Testando conexões SSH ==="
-
-          echo "Testando bastion..."
+          echo "=== Testando conexão com bastion ==="
           ssh bastion "echo 'Bastion OK' && whoami"
 
+          echo "=== Diagnosticando conectividade do bastion para os targets ==="
+
+          echo "Verificando se o bastion consegue conectar no target-backend-1..."
+          ssh bastion "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'echo Target-1 OK' || echo 'Falha na conexão com target-1'"
+
+          echo "Verificando se o bastion consegue conectar no target-backend-2..."
+          ssh bastion "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'echo Target-2 OK' || echo 'Falha na conexão com target-2'"
+
+          echo "=== Verificando chaves SSH no bastion ==="
+          ssh bastion "ls -la ~/.ssh/"
+          ssh bastion "cat ~/.ssh/authorized_keys | head -2"
+
+      - name: Setup SSH keys in bastion for target access
+        run: |
+          echo "=== Configurando chave SSH no bastion para acessar targets ==="
+
+          # Copiar a chave privada para o bastion
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | ssh bastion 'cat > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa'
+
+          # Configurar SSH config no bastion
+          ssh bastion 'cat > ~/.ssh/config << "SSHCONFIG"
+          Host target-backend-1
+            HostName ${{ secrets.BACKEND_SERVER_1_IP }}
+            User deploy
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+
+          Host target-backend-2
+            HostName ${{ secrets.BACKEND_SERVER_2_IP }}
+            User deploy
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          SSHCONFIG'
+
+          ssh bastion 'chmod 600 ~/.ssh/config'
+
+      - name: Test connectivity from bastion
+        run: |
+          echo "=== Testando conectividade do bastion após configuração ==="
+
           echo "Testando target-backend-1..."
-          ssh target-backend-1 "echo 'Target-1 OK' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha target-1"
+          ssh bastion "ssh target-backend-1 'echo Target-1 OK && whoami && ls -la /opt/backend-api-rest/'" || echo "Ainda falhando target-1"
 
           echo "Testando target-backend-2..."
-          ssh target-backend-2 "echo 'Target-2 OK' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha target-2"
+          ssh bastion "ssh target-backend-2 'echo Target-2 OK && whoami && ls -la /opt/backend-api-rest/'" || echo "Ainda falhando target-2"
 
-      - name: Copy files via bastion (alternative method)
+      - name: Copy files via bastion
         run: |
           echo "=== Copiando arquivos via bastion ==="
 
-          # Método alternativo: copiar via bastion usando rsync
-          echo "Copiando para target-backend-1..."
-          ssh bastion "mkdir -p /tmp/deploy-files"
-          scp ./docker-compose.yaml bastion:/tmp/deploy-files/
-          ssh bastion "scp /tmp/deploy-files/docker-compose.yaml deploy@${{ secrets.BACKEND_SERVER_1_IP }}:/opt/backend-api-rest/"
+          echo "Copiando docker-compose.yaml..."
+          scp ./docker-compose.yaml bastion:/tmp/docker-compose.yaml
 
-          echo "Copiando para target-backend-2..."
-          ssh bastion "scp /tmp/deploy-files/docker-compose.yaml deploy@${{ secrets.BACKEND_SERVER_2_IP }}:/opt/backend-api-rest/"
+          echo "Distribuindo para target-backend-1..."
+          ssh bastion "scp /tmp/docker-compose.yaml target-backend-1:/opt/backend-api-rest/"
 
-          # Limpar arquivos temporários
-          ssh bastion "rm -rf /tmp/deploy-files"
+          echo "Distribuindo para target-backend-2..."
+          ssh bastion "scp /tmp/docker-compose.yaml target-backend-2:/opt/backend-api-rest/"
 
           echo "=== Verificando arquivos copiados ==="
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'ls -la /opt/backend-api-rest/'"
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'ls -la /opt/backend-api-rest/'"
+          ssh bastion "ssh target-backend-1 'ls -la /opt/backend-api-rest/'"
+          ssh bastion "ssh target-backend-2 'ls -la /opt/backend-api-rest/'"
 
       - name: Deploy via bastion
         run: |
@@ -156,10 +175,10 @@ jobs:
           '
 
           echo "Deploy no servidor 1..."
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} '$DEPLOY_SCRIPT'"
+          ssh bastion "ssh target-backend-1 '$DEPLOY_SCRIPT'"
 
           echo "Deploy no servidor 2..."
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} '$DEPLOY_SCRIPT'"
+          ssh bastion "ssh target-backend-2 '$DEPLOY_SCRIPT'"
 
       - name: Health Check
         run: |
@@ -167,10 +186,10 @@ jobs:
           sleep 30
 
           echo "Verificando servidor 1..."
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
+          ssh bastion "ssh target-backend-1 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
 
           echo "Verificando servidor 2..."
-          ssh bastion "ssh deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
+          ssh bastion "ssh target-backend-2 'curl -f http://localhost:8082/actuator/health || echo \"Health check falhou\"'"
 
           echo "✅ Deploy concluído!"
 
