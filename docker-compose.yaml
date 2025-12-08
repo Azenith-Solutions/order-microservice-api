@@ -7,14 +7,14 @@ services:
     restart: unless-stopped
     ports:
       - "5672:5672"
-      - "15672:15672"  # Management UI
+      - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
-      - backend-network
+      - hardwaretech-network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -36,7 +36,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - backend-network
+      - hardwaretech-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -61,13 +61,13 @@ services:
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_DRIVER=${DB_DRIVER:-com.mysql.cj.jdbc.Driver}
-      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
-      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-guest}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
       - ORDER_CREATE_EXCHANGE=${ORDER_CREATE_EXCHANGE}
       - ORDER_CREATE_QUEUE=${ORDER_CREATE_QUEUE}
-      - ORDER_CREATE_ROUTING_KEY=${ORDER_CREATE_ROUTING_KEY}
+      - ORDER_CREATE_ROUTING_KEY=${ORDER_ROUTING_KEY}
       - ORDER_DLX=${ORDER_DLX}
       - ORDER_DLQ=${ORDER_DLQ}
       - ORDER_CREATED_EXCHANGE=${ORDER_CREATED_EXCHANGE}
@@ -76,7 +76,10 @@ services:
       - ORDER_CREATED_DLX=${ORDER_CREATED_DLX}
       - ORDER_CREATED_DLQ=${ORDER_CREATED_DLQ}
     networks:
-      - backend-network
+      - hardwaretech-network
+    # Mapear o banco externo
+    extra_hosts:
+      - "mysql-server:10.0.1.5"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -95,8 +98,8 @@ services:
         max-file: "3"
 
 networks:
-  backend-network:
-    driver: bridge
+  hardwaretech-network:
+    external: true
 
 volumes:
   rabbitmq_data:
