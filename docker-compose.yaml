@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  backend-api:
+    image: ghcr.io/azenith-solutions/backend-api-rest:${BACKEND_IMAGE_TAG:-latest}
+    container_name: backend-api-rest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-production}
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DRIVER=${DB_DRIVER:-com.mysql.cj.jdbc.Driver}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_URL=${GEMINI_API_URL}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - BREVO_API_URL=${BREVO_API_URL}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ORDER_MICROSERVICE_URL=http://order-microservice:8082
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  order-microservice:
+    image: ghcr.io/azenith-solutions/order-microservice-api:${ORDER_IMAGE_TAG:-latest}
+    container_name: order-microservice-api
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-production}
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DRIVER=${DB_DRIVER:-com.mysql.cj.jdbc.Driver}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ORDER_CREATE_EXCHANGE=${ORDER_CREATE_EXCHANGE}
+      - ORDER_CREATE_QUEUE=${ORDER_CREATE_QUEUE}
+      - ORDER_CREATE_ROUTING_KEY=${ORDER_CREATE_ROUTING_KEY}
+      - ORDER_DLX=${ORDER_DLX}
+      - ORDER_DLQ=${ORDER_DLQ}
+      - ORDER_CREATED_EXCHANGE=${ORDER_CREATED_EXCHANGE}
+      - ORDER_CREATED_QUEUE=${ORDER_CREATED_QUEUE}
+      - ORDER_CREATED_ROUTING_KEY=${ORDER_CREATED_ROUTING_KEY}
+      - ORDER_CREATED_DLX=${ORDER_CREATED_DLX}
+      - ORDER_CREATED_DLQ=${ORDER_CREATED_DLQ}
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  backend-network:
+    driver: bridge
+
+volumes:
+  uploads:

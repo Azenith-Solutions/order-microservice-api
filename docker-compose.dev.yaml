@@ -1,0 +1,116 @@
+name: hardwaretech
+
+services:
+  backend-api:
+    build:
+      context: ../backend-api  # Ajuste o path conforme sua estrutura
+      dockerfile: Dockerfile.dev
+    container_name: hardwaretech-api-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.development
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - ORDER_MICROSERVICE_URL=http://order-microservice:8082
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - backend-network
+      - hardwaretech-network 
+    depends_on:
+      mysql-dev:
+        condition: service_healthy
+      rabbitmq-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  order-microservice:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: order-microservice-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    env_file:
+      - .env.development
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    networks:
+      - backend-network
+      - hardwaretech-network
+    depends_on:
+      mysql-dev:
+        condition: service_healthy
+      rabbitmq-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  mysql-dev:
+    image: mysql:8.0
+    container_name: hardwaretech-mysql-dev
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=H@RDW@RETECH123
+      - MYSQL_DATABASE=db_hardwaretech_local
+      - MYSQL_ROOT_HOST=%
+    volumes:
+      - mysql-dev-data:/var/lib/mysql
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pH@RDW@RETECH123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password --bind-address=0.0.0.0
+
+  rabbitmq-dev:
+    image: rabbitmq:3-management
+    container_name: hardwaretech-rabbitmq-dev
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    volumes:
+      - rabbitmq-dev-data:/var/lib/rabbitmq
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  backend-network:
+    driver: bridge
+  hardwaretech-network: 
+    external: true
+
+volumes:
+  mysql-dev-data:
+    driver: local
+  rabbitmq-dev-data:
+    driver: local
+  uploads:
+    driver: local

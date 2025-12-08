@@ -1,0 +1,19 @@
+FROM openjdk:21-jdk-slim
+
+WORKDIR /app
+
+# Instalar Maven
+RUN apt-get update && apt-get install -y maven wget && rm -rf /var/lib/apt/lists/*
+
+# Copiar arquivos do projeto
+COPY pom.xml .
+COPY src ./src
+
+# Build da aplicação
+RUN mvn clean package -DskipTests
+
+# Expor a porta
+EXPOSE 8082
+
+# Comando para executar a aplicação
+ENTRYPOINT ["java", "-jar", "target/*.jar"]
