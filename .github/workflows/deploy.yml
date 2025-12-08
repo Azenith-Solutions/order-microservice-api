@@ -58,55 +58,83 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ci
           chmod 600 ~/.ssh/id_ci
 
-          ssh-keyscan -T 10 -H "${{ secrets.BASTION_IP }}" >> ~/.ssh/known_hosts || echo "ssh-keyscan failed"
+          # Adicionar fingerprints dos servidores conhecidos
+          ssh-keyscan -T 10 -H "${{ secrets.BASTION_IP }}" >> ~/.ssh/known_hosts || echo "ssh-keyscan bastion failed"
 
           cat > ~/.ssh/config << 'SSHCONFIG'
           Host bastion
             HostName ${{ secrets.BASTION_IP }}
-            User ${{ secrets.SERVER_USER }}
+            User deploy
             IdentityFile ~/.ssh/id_ci
-            StrictHostKeyChecking accept-new
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
 
           Host target-backend-1
             HostName ${{ secrets.BACKEND_SERVER_1_IP }}
-            User ${{ secrets.SERVER_USER }}
+            User deploy
             IdentityFile ~/.ssh/id_ci
             ProxyJump bastion
-            StrictHostKeyChecking accept-new
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
 
           Host target-backend-2
             HostName ${{ secrets.BACKEND_SERVER_2_IP }}
-            User ${{ secrets.SERVER_USER }}
+            User deploy
             IdentityFile ~/.ssh/id_ci
             ProxyJump bastion
-            StrictHostKeyChecking accept-new
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
           SSHCONFIG
 
           chmod 600 ~/.ssh/config
 
-      - name: Debug SSH Connections
+          echo "=== SSH Config ==="
+          cat ~/.ssh/config
+
+          echo "=== SSH Key Info ==="
+          ssh-keygen -lf ~/.ssh/id_ci
+
+      - name: Debug SSH Key
         run: |
-          echo "=== Testando conexões SSH ==="
-          echo "SERVER_USER: ${{ secrets.SERVER_USER }}"
+          echo "=== Chave pública SSH que estamos usando ==="
+          ssh-keygen -y -f ~/.ssh/id_ci
 
-          echo "Testando conexão com target-backend-1..."
-          ssh target-backend-1 "echo 'Conexão SSH OK!' && whoami && ls -la /opt/backend-api-rest/"
+          echo "=== Testando conexão com bastion ==="
+          ssh -v bastion "echo 'Bastion OK!' && whoami" || echo "Falha no bastion"
 
-          echo "Testando conexão com target-backend-2..."
-          ssh target-backend-2 "echo 'Conexão SSH OK!' && whoami && ls -la /opt/backend-api-rest/"
-
-          echo "=== Conexões testadas com sucesso! ==="
-
-      - name: Copy docker-compose.yml to Backend Server 1
+      - name: Verify SSH Keys on Servers
         run: |
-          scp -v ./docker-compose.yaml target-backend-1:/opt/backend-api-rest/docker-compose.yaml
+          echo "=== Verificando chaves SSH nos servidores ==="
 
-      - name: Copy docker-compose.yml to Backend Server 2
-        run: |
-          scp -v ./docker-compose.yaml target-backend-2:/opt/backend-api-rest/docker-compose.yaml
+          echo "Verificando chave no bastion..."
+          ssh bastion "cat ~/.ssh/authorized_keys | grep -E '^ssh-ed25519' | head -1" || echo "Erro ao ler authorized_keys do bastion"
 
-      - name: Verify copied files
+          echo "Verificando chave no target-backend-1..."
+          ssh bastion "ssh -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_1_IP }} 'cat ~/.ssh/authorized_keys | grep -E \"^ssh-ed25519\" | head -1'" || echo "Erro ao ler authorized_keys do target-backend-1"
+
+          echo "Verificando chave no target-backend-2..."
+          ssh bastion "ssh -o StrictHostKeyChecking=no deploy@${{ secrets.BACKEND_SERVER_2_IP }} 'cat ~/.ssh/authorized_keys | grep -E \"^ssh-ed25519\" | head -1'" || echo "Erro ao ler authorized_keys do target-backend-2"
+
+      - name: Test Direct SSH to Targets
         run: |
+          echo "=== Testando conexão direta via bastion ==="
+
+          echo "Testando target-backend-1..."
+          ssh -v target-backend-1 "echo 'Target-backend-1 OK!' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha no target-backend-1"
+
+          echo "Testando target-backend-2..."  
+          ssh -v target-backend-2 "echo 'Target-backend-2 OK!' && whoami && ls -la /opt/backend-api-rest/" || echo "Falha no target-backend-2"
+
+      - name: Copy docker-compose.yml to Backend Servers
+        run: |
+          echo "=== Copiando docker-compose.yml ==="
+
+          echo "Copiando para target-backend-1..."
+          scp ./docker-compose.yaml target-backend-1:/opt/backend-api-rest/docker-compose.yaml
+
+          echo "Copiando para target-backend-2..."
+          scp ./docker-compose.yaml target-backend-2:/opt/backend-api-rest/docker-compose.yaml
+
           echo "=== Verificando arquivos copiados ==="
           ssh target-backend-1 "ls -la /opt/backend-api-rest/"
           ssh target-backend-2 "ls -la /opt/backend-api-rest/"
